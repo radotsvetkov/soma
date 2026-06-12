@@ -69,6 +69,14 @@ What happens around that command:
 
 Honest limits, stated plainly. `soma wrap` policy-checks and journals the launch. It is not a syscall or network sandbox around the child process, and its command gate is a deny list of known-bad command forms, not a semantic guard. For hard isolation, run soma under a container or a restricted user. Pipes also flatten full-screen terminal UIs, so target headless and print modes such as `claude -p`.
 
+## See every action in the cockpit
+
+There is a companion desktop app, [soma cockpit](https://github.com/radotsvetkov/cockpit), that reads a soma project on disk and renders the journal as a readable timeline. It runs locally, makes no network calls, and shells out to this same binary, so the green "chain verified" badge is the literal output of `soma log verify`.
+
+![The soma cockpit timeline, showing a wrapped agent run, an RFC 3161 anchor, and a sudo command denied by policy](assets/cockpit-timeline.png)
+
+This is a real run. You can read the wrapped agent session, the chain head anchored at freetsa.org, the exported evidence bundle, and the `sudo` command that policy denied before it could spawn, flagged in red.
+
 ## A tamper-evident audit log you can verify
 
 Every action soma takes becomes an event in an append-only JSONL journal. Each event carries the SHA-256 of the previous event and a hash of itself, so the file is a hash chain.
