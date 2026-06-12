@@ -1,0 +1,15 @@
+[package]
+name = "soma"
+version = "0.2.0"
+edition = "2021"
+description = "Transparent, policy-governed, self-improving agent runtime. Zero dependencies."
+license = "Apache-2.0"
+
+[dependencies]
+# none — by design. See SPEC.md R18 and README "Why zero dependencies".
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

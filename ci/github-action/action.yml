@@ -1,0 +1,153 @@
+# soma-governed-run — composite GitHub Action (v6/D12).
+#
+# Runs one command under soma governance inside a workflow: policy-gated
+# spawn, hash-chained wrap.start/wrap.end receipts, then exports a portable
+# evidence bundle + an UNSIGNED in-toto attestation for the reviewer.
+#
+# Deliberate non-features:
+#   - No artifact upload: composite actions stay pure bash; the CALLER
+#     uploads the out-dir with actions/upload-artifact@v4 (see docs/CI.md).
+#   - No signing: soma ships zero dependencies, so the attestation is the
+#     INPUT for cosign / `gh attestation` in the calling workflow.
+#
+# CI semantics: the wrapped command's non-zero exit fails the job — but only
+# AFTER the evidence is exported. Evidence matters most when the run failed.
+#
+# Status: validated locally (every step below executed by hand end to end,
+# 2026-06-12); CI-untested — this repo is not public on GitHub yet.
+name: "soma-governed-run"
+description: >-
+  Run a command under soma governance: policy-gated spawn, hash-chained
+  journal receipts, then a portable evidence bundle + an unsigned in-toto
+  attestation. Uploading the evidence directory is the caller's job
+  (actions/upload-artifact@v4).
+
+inputs:
+  run:
+    description: >-
+      The command to govern. Executed as `soma wrap -- bash -c "<run>"`, so
+      shell pipes and && work; the full command line is journaled in the
+      wrap.start receipt and checked against the policy's deny globs.
+    required: true
+  label:
+    description: Label journaled on the wrap.start/wrap.end receipts.
+    required: false
+    default: "ci"
+  preset:
+    description: >-
+      Policy preset applied before the run
+      (local-only | hybrid-default | cloud-max | low-ram).
+    required: false
+    default: "local-only"
+  anchor:
+    description: >-
+      "true" = RFC 3161-timestamp the journal head after the run
+      (`soma anchor now`). Requires BOTH outbound network in the workflow AND
+      a preset whose allowlist carries the TSA host: hybrid-default and
+      cloud-max include freetsa.org + timestamp.digicert.com; local-only
+      never does — anchor:"true" with the default preset fails the policy
+      gate by design, and that refusal fails the job (after evidence export).
+    required: false
+    default: "false"
+  out-dir:
+    description: >-
+      Directory (relative to the workspace) that receives the evidence:
+      the .soma-export bundle dir, its .tar.gz, and the attestation JSON.
+    required: false
+    default: "soma-evidence"
+
+outputs:
+  journal-head:
+    description: >-
+      The attested journal head (= the attestation's subject.digest.sha256).
+      Note: the bundle's journal contains one more event than this head
+      covers — the attestation's own export receipt, whose data.head equals
+      this value (the reviewer's cross-link, docs/CI.md).
+    value: ${{ steps.evidence.outputs.journal-head }}
+  bundle-path:
+    description: Path of the exported .soma-export evidence bundle directory.
+    value: ${{ steps.evidence.outputs.bundle-path }}
+  attestation-path:
+    description: >-
+      Path of the in-toto Statement v1 JSON. UNSIGNED — sign it in the
+      calling workflow with cosign or `gh attestation` (docs/CI.md).
+    value: ${{ steps.evidence.outputs.attestation-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build soma
+      shell: bash
+      run: |
+        # Zero dependencies = a ~5 s cold `cargo build --release`; GitHub's
+        # ubuntu-latest runners ship a Rust toolchain, so no setup action
+        # and no toolchain pinning are needed.
+        SOMA_REPO="$(cd "${{ github.action_path }}/../.." && pwd)"
+        cargo build --release --manifest-path "$SOMA_REPO/Cargo.toml"
+        echo "$SOMA_REPO/target/release" >> "$GITHUB_PATH"
+
+    - name: Init governed project
+      shell: bash
+      env:
+        PRESET: ${{ inputs.preset }}
+      run: |
+        set -eu
+        # Unique per invocation so the action can be used twice in one job.
+        proj="$(mktemp -d "$RUNNER_TEMP/soma-ci.XXXXXX")"
+        echo "SOMA_CI_PROJECT=$proj" >> "$GITHUB_ENV"
+        soma init "$proj" --name ci
+        soma --project "$proj" preset apply "$PRESET"
+
+    - name: Governed run + evidence export
+      id: evidence
+      shell: bash
+      env:
+        RUN: ${{ inputs.run }}
+        LABEL: ${{ inputs.label }}
+        ANCHOR: ${{ inputs.anchor }}
+        OUT_DIR: ${{ inputs.out-dir }}
+      run: |
+        # Deliberately NOT `set -e` around the wrapped command: its exit code
+        # is captured, evidence is exported either way, and the captured code
+        # is re-raised at the end — a failed agent task must fail the job
+        # WITH its evidence attached, not instead of it.
+        set -u
+        proj="$SOMA_CI_PROJECT"
+
+        rc=0
+        soma --project "$proj" wrap --label "$LABEL" -- bash -c "$RUN" || rc=$?
+
+        anchor_rc=0
+        if [ "$ANCHOR" = "true" ]; then
+          soma --project "$proj" anchor now || anchor_rc=$?
+        fi
+
+        # Attestation FIRST, bundle SECOND: the bundle's journal then
+        # contains the attestation's export receipt, so a reviewer can tie
+        # the attestation digest to a hash on the chain they verified.
+        # Both exports refuse on a broken chain. They write into the
+        # project's own exports/; bash copies them out (soma's writable_paths
+        # boundary stays untouched).
+        soma --project "$proj" export attestation
+        soma --project "$proj" export
+
+        mkdir -p "$OUT_DIR"
+        cp -R "$proj/exports/." "$OUT_DIR/"
+
+        bundle="$(find "$OUT_DIR" -maxdepth 1 -type d -name '*.soma-export' | sort | tail -n 1)"
+        attestation="$(find "$OUT_DIR" -maxdepth 1 -type f -name '*-attestation-*.json' | sort | tail -n 1)"
+        # First "sha256" in the statement is the subject digest (key order is
+        # fixed: _type, subject, predicateType, predicate).
+        head="$(sed -nE 's/.*"sha256": "([0-9a-f]{64})".*/\1/p' "$attestation" | head -n 1)"
+        {
+          echo "journal-head=$head"
+          echo "bundle-path=$bundle"
+          echo "attestation-path=$attestation"
+        } >> "$GITHUB_OUTPUT"
+        echo "soma-governed-run: head=$head wrap_exit=$rc anchor_exit=$anchor_rc"
+        echo "evidence in $OUT_DIR — upload it with actions/upload-artifact@v4 (if: always())"
+
+        # Exit-code policy: the wrapped command's failure wins; a requested-
+        # but-failed anchor fails the job too (it was asked for and refused).
+        if [ "$rc" -ne 0 ]; then exit "$rc"; fi
+        exit "$anchor_rc"

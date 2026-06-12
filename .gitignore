@@ -1,0 +1,33 @@
+# Build output
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# soma runtime state (a soma project keeps its journal under .soma/)
+.soma/
+exports/
+
+# Local environment and editor noise
+.env
+.DS_Store
+*.log
+err.txt
+.idea/
+.vscode/
+
+# Tooling and adjacent project state that must never be published
+.claude/
+.akmon/
+CLAUDE.md
+settings.local.json
+
+# Internal working files never published
+/_internal/
+/private/
+LAUNCH/
+STATE.md
+REPORT.md
+ACCEPTANCE*.md
+UI-SPEC.md
+docs/V6-DESIGN.md
+docs/FIX-SKILL.md
