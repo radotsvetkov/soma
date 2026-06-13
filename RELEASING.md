@@ -18,11 +18,13 @@ such as `soma-runtime` rather than renaming the binary.
 
 ## 1. Bump the version
 
-Update the version in step in every place it appears, then commit:
+Update the version everywhere it appears, then commit:
 
 - `version` in `Cargo.toml`.
 - The `Status: vX.Y.Z` line and the build-stats block near the top of `README.md`.
-- `version "X.Y.Z"` in `packaging/homebrew/Formula/soma.rb`.
+
+The Homebrew formula has no version line to bump; its version is read from the
+release URLs, which are updated in step 3.
 
 ## 2. Tag, which triggers the binary release
 

@@ -1,12 +1,13 @@
 class Soma < Formula
   desc "Local-first AI agent governance with verifiable, tamper-evident audit trails"
   homepage "https://github.com/radotsvetkov/soma"
-  version "0.2.0"
   license "Apache-2.0"
 
   # These archives are the ones cargo-dist attaches to each GitHub release.
-  # On a new release, bump `version` above and replace the four sha256 values
-  # with the published per-archive checksums (see RELEASING.md).
+  # On a new release, bump the four download URLs to the new tag and replace the
+  # four sha256 values with the published per-archive checksums. The version is
+  # read from the URL, so there is no separate version line to bump. See
+  # RELEASING.md.
   on_macos do
     on_arm do
       url "https://github.com/radotsvetkov/soma/releases/download/v0.2.0/soma-aarch64-apple-darwin.tar.xz"
