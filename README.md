@@ -30,9 +30,7 @@ soma takes the opposite position:
 ## What you can do in ten minutes
 
 ```sh
-# Build. No network needed, because there are no dependencies to fetch.
-cargo build --release
-alias soma=$PWD/target/release/soma
+# Install soma first (see Install, below). Then the whole loop is these commands.
 
 # Create a local-only project (no outbound network until you opt in).
 soma init --name myproject
@@ -151,7 +149,58 @@ auto      execute and apply mechanical proposals automatically
 
 On top of the autonomy level you get command allow and deny patterns, a network host allow list (localhost only by default), writable-path boundaries, and secret redaction. Every command, execution, network call, and path decision is journaled with the exact rule that fired. soma fails closed: a malformed policy file is refused rather than silently widened.
 
-## Install and build
+## Install
+
+soma is a single self-contained binary. Pick whichever path you trust most.
+
+### Verify and run a prebuilt binary (recommended)
+
+Every release attaches a compressed archive for macOS and Linux next to a SHA-256 checksum, so you can confirm exactly what you downloaded before you run it. For a tool whose whole job is verifiable evidence, checking the binary is the point, not an afterthought.
+
+```sh
+base=https://github.com/radotsvetkov/soma/releases/latest/download
+
+# Pick the archive for your platform:
+#   soma-aarch64-apple-darwin.tar.xz       Apple Silicon macOS
+#   soma-x86_64-apple-darwin.tar.xz        Intel macOS
+#   soma-aarch64-unknown-linux-gnu.tar.xz  ARM64 Linux
+#   soma-x86_64-unknown-linux-gnu.tar.xz   x86_64 Linux
+file=soma-aarch64-apple-darwin.tar.xz
+
+curl -LO $base/$file
+curl -LO $base/$file.sha256
+
+# Verify the download against its published checksum before you trust it.
+# (macOS uses shasum; on Linux swap in sha256sum.)
+grep . $file.sha256 | shasum -a 256 -c -        # Linux: grep . $file.sha256 | sha256sum -c -
+
+# Unpack and put soma on your PATH.
+tar -xf $file
+sudo install -m 0755 soma /usr/local/bin/soma
+soma --version
+```
+
+### Homebrew
+
+```sh
+brew install radotsvetkov/soma/soma
+```
+
+### One-line installer
+
+Each release publishes an installer script that downloads the right archive, checks its hash, and puts `soma` on your PATH.
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/radotsvetkov/soma/releases/latest/download/soma-installer.sh | sh
+```
+
+### With cargo
+
+```sh
+cargo install --git https://github.com/radotsvetkov/soma
+```
+
+### Build from source
 
 ```sh
 git clone https://github.com/radotsvetkov/soma
@@ -160,7 +209,7 @@ cargo build --release
 ./target/release/soma --help
 ```
 
-soma needs a recent Rust toolchain and nothing else.
+soma needs a recent Rust toolchain and nothing else. A cold build takes a few seconds, because there are no dependencies to fetch.
 
 ## Project layout
 

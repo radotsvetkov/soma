@@ -4,12 +4,22 @@ version = "0.2.0"
 edition = "2021"
 description = "Transparent, policy-governed, self-improving agent runtime. Zero dependencies."
 license = "Apache-2.0"
+repository = "https://github.com/radotsvetkov/soma"
+homepage = "https://github.com/radotsvetkov/soma"
+readme = "README.md"
+keywords = ["ai-agents", "governance", "audit-log", "tamper-evident", "local-first"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
-# none — by design. See SPEC.md R18 and README "Why zero dependencies".
+# none, by design. See SPEC.md R18 and README "Why zero dependencies".
 
 [profile.release]
 opt-level = "z"
 lto = true
 codegen-units = 1
 strip = true
+
+# Used by the release pipeline (cargo-dist). Inherits release verbatim so the
+# published binary is byte-for-byte the same build the README describes.
+[profile.dist]
+inherits = "release"
