@@ -174,9 +174,10 @@ curl -LO $base/$file.sha256
 # (macOS uses shasum; on Linux swap in sha256sum.)
 grep . $file.sha256 | shasum -a 256 -c -        # Linux: grep . $file.sha256 | sha256sum -c -
 
-# Unpack and put soma on your PATH.
+# Unpack (the archive holds soma, LICENSE, and README under one folder) and
+# put soma on your PATH.
 tar -xf $file
-sudo install -m 0755 soma /usr/local/bin/soma
+sudo install -m 0755 ${file%.tar.xz}/soma /usr/local/bin/soma
 soma --version
 ```
 
